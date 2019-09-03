@@ -21,6 +21,12 @@
 	my %Cat;
 	if ($response->is_success) {
 	
+	open (OUT, ">", "../SecondLife/events.json");
+	my $x = $response->decoded_content;
+	$x =~ s/}/}\n/g;
+	print OUT $x;
+	close OUT;
+   
 	my $q = 'delete from events';
 	$db->Sql($q);
 	if ($db->Error) {
@@ -37,16 +43,14 @@
 	for my $data ( @$b ) {
 		
 		my $name = $data->{title};
-		
-		
+				
 		my $time = $data->{start};  #2018-08-30T07:00:00+00:00
 		my $slurl = $data->{hgurl};
 		
 		use HTML::Entities;
 		$slurl = encode_entities($slurl);
 		
-		my $description =  $data->{description};
-		
+		my $description =  $data->{description};		
 		$description = decode_entities($description);
 		
 		use HTML::Strip;
@@ -56,15 +60,13 @@
 		$description = $hs->parse( $description );
 		$hs->eof;
 		 
-		 utf8::decode($description);
-		 
-		
+		utf8::decode($description);
+		 		
 		$name = decode_entities($name);
 		utf8::decode($name);
 		
 		print "$description\n";
-		my @categories = $data->{categories};
-		
+		my @categories = $data->{categories};		
 		
 		foreach my $category (@categories)
 		{
@@ -75,8 +77,7 @@
 		}
 		
 		my $end = $data->{end};
-		
-		
+				
 		use Date::Manip;
 		my $date1=&ParseDate($time);
 		print &UnixDate($date1,"The time is now %T on %b %e, %Y.\n");
@@ -90,8 +91,7 @@
 		my $y =&UnixDate($date1,"%Y");
 		my $m =&UnixDate($date1,"%m");
 		my $dd =&UnixDate($date1,"%d");
-		
-		
+				
 		my $secs= &Date_SecsSince1970GMT($m,$dd,$y,$h,$mn,$s) - 60*60 *2;
 		
 		my $date2=&ParseDate($end);
@@ -104,32 +104,66 @@
 		
 		my $duration = $day * 60 + $min; 
 		print "The duration is $duration minutes\n";
+		# hop://goto.theencoreescape.com:8002/All Saints Ballroom/94/124/34
 		
-		$slurl =~ /:.*:(.*)/;
+		my $gateway = '';
+		my $simname = '';
+		my $port = '';
+		my $landingpoint = '';
+			
+		print "$data->{hgurl}\n";
 		
-		my $simname = $1;
+		use URI::Escape;
 		
-		if ($simname =~ /Melody/) {
-			my $x = 1;
+		# clean up front end
+		$slurl =~ s/http:\/\///;
+		$slurl =~ s/:\/\///;
+		$slurl =~ s/\/\///;
+		$slurl =~ s/(\d{4}):/$1\//;
+		
+		if ($slurl =~ /KARAOKE/i) {
+			my $bp = 1;
 		}
-	
-		$slurl =~ s/hop:\/\///;
-		
-		$slurl = 'secondlife://http|!!' . $slurl;
-		
-		# $slurl =~ s/:(\d{4})\//:$1:/;
-		
-		if ($slurl !~ /\d$/) {
-			$slurl .= '/128/128/25';
+		if ($slurl =~ /(.*):(\d+)\/(.*?)\/(.*)/ ) {
+			$gateway = $1 || '';
+			$port = $2 || '';			
+			$simname = $3 || '';
+			$simname = uri_escape_utf8($simname);
+			$landingpoint = "//$4" if $4;
+		} elsif ($slurl =~ /(.*?):(\d+)\/(.*)/ ){
+			#kalasiddhigrid.com:8002:
+			$gateway = $1 || '';
+			$port = $2 || '';
+			$simname = $3 || '';
+			$simname = uri_escape_utf8($simname);
+			$landingpoint = '';
+		} elsif ($slurl =~ /(.*?):(\d+)\// ){
+			#kalasiddhigrid.com:8002:
+			$gateway = $1 || '';
+			$port = $2 || '';
+		} elsif ($slurl =~ /(.*?):(\d+)/ ){
+			#kalasiddhigrid.com:8002:
+			$gateway = $1 || '';
+			$port = $2 || '';
 		}
+		else {
+			my $bp = 1;	 # breakpoint
+			next;
+		}
+				
+		#secondlife://apps/teleport/goto.theencoreescape.com:8002/All Saints Ballroom/94/124/34
+		#secondlife:///app/teleport/3d.gimisa.ca|9000|gimisa3//128/128/25 
+		$slurl = qq!secondlife://app/teleport/${gateway}|${port}|${simname}${landingpoint}!;			
 		
 		$description .= "\n\n" . $slurl;
 		
-		print qq!$name\n!;
+		print "$slurl\n\n";
 		
 		$name = substr($name,0,255);
 		
-		my $q = 'insert into events  (simname, category,creatoruuid, owneruuid,name, description, dateUTC,duration,covercharge, coveramount,parcelUUID, globalPos,eventflags) values (?,?,?,?,?,?,?,?,?,?,?,?,?) ';
+		my $q = 'insert into events  (simname, category,creatoruuid, owneruuid,name, description,
+									  dateUTC,duration,covercharge, coveramount,parcelUUID, globalPos,
+									  eventflags) values (?,?,?,?,?,?,?,?,?,?,?,?,?) ';
 		if($db->Prepare($q))  {die $db->Error;}
 		$startdate = 0;
 		
@@ -155,30 +189,10 @@
 		print "$x\n";
 	}   
 	
-	use JSON;
 	
-	$q = 'Select simname, category,creatoruuid, owneruuid,name, description, dateUTC,duration,covercharge, coveramount,parcelUUID, globalPos,eventflags from events';
-	if ($db->Prepare($q)) {  die $db->Error;}
-	if ($db->Execute()) {die $db->Error;}
-	open (OUT, ">", "../events.txt");
-	
-	while ($db->FetchRow) {
-		my %Data =  $db->DataHash();
-		foreach my $data (keys %Data)
-		{
-			$Data{$data} =~ s/\n/\~/g;
-			$Data{$data} =~ s/\r//g;
-			print OUT "$data^$Data{$data}|";	
-		}
-		print OUT "\n";
-		
-	}
-	
-	close OUT;
-	}
-	else {
+}  else {
 	print "No events available today";
-	}
+}
 
 
 
