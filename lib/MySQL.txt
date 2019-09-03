@@ -1,0 +1,1 @@
+DSN=ossearch:localhost:3306;UID=searchuserid;PWD=passwordforsearch;

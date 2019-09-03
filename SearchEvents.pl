@@ -1,0 +1,252 @@
+#!perl
+
+	use strict;
+	use warnings;
+	
+	use lib 'lib';
+	
+	require "setupMYSQL.plx";
+	my $db = GetDB();
+
+
+	require LWP::UserAgent;
+	
+	my $ua = LWP::UserAgent->new;
+	$ua->timeout(10);
+	$ua->env_proxy;
+	
+	my $response = $ua->get('http://yourworlds.eu/hypevents/events.json');
+	
+	my $x = $response->content;
+	my %Cat;
+	if ($response->is_success) {
+	
+	my $q = 'delete from events';
+	$db->Sql($q);
+	if ($db->Error) {
+		die $db->Error;
+	}
+	
+	use JSON;
+	
+	my @a =  decode_json $response->content;
+	
+	use utf8;
+	
+	for my $b( @a ) {
+	for my $data ( @$b ) {
+		
+		my $name = $data->{title};
+		
+		
+		my $time = $data->{start};  #2018-08-30T07:00:00+00:00
+		my $slurl = $data->{hgurl};
+		
+		use HTML::Entities;
+		$slurl = encode_entities($slurl);
+		
+		my $description =  $data->{description};
+		
+		$description = decode_entities($description);
+		
+		use HTML::Strip;
+	
+		my $hs = HTML::Strip->new();
+	
+		$description = $hs->parse( $description );
+		$hs->eof;
+		 
+		 utf8::decode($description);
+		 
+		
+		$name = decode_entities($name);
+		utf8::decode($name);
+		
+		print "$description\n";
+		my @categories = $data->{categories};
+		
+		
+		foreach my $category (@categories)
+		{
+			foreach  my $c (@$category)
+			{
+				$Cat{$c} ++;
+			}
+		}
+		
+		my $end = $data->{end};
+		
+		
+		use Date::Manip;
+		my $date1=&ParseDate($time);
+		print &UnixDate($date1,"The time is now %T on %b %e, %Y.\n");
+		&UnixDate($date1,"The time is now %T on %b %e, %Y.\n");
+		my $startdate = &UnixDate($date1,"%Y-%m-%d %H:%M:%S");
+		
+		my $h = &UnixDate($date1,"%H");
+		my $mn =&UnixDate($date1,"%M");
+		my $s =&UnixDate($date1,"%S");
+		
+		my $y =&UnixDate($date1,"%Y");
+		my $m =&UnixDate($date1,"%m");
+		my $dd =&UnixDate($date1,"%d");
+		
+		
+		my $secs= &Date_SecsSince1970GMT($m,$dd,$y,$h,$mn,$s) - 60*60 *2;
+		
+		my $date2=&ParseDate($end);
+		print &UnixDate($date2,"The event ends at %T on %b %e, %Y.\n");
+		my $err;
+		my $delta=&DateCalc($date1,$date2,\$err);
+		print "The duration is $delta\n";
+		#0:0:0:0:24:0:0
+		my ($a,$b,$c,$d,$day,$min,$sec) = split(':',$delta);
+		
+		my $duration = $day * 60 + $min; 
+		print "The duration is $duration minutes\n";
+		
+		$slurl =~ /:.*:(.*)/;
+		
+		my $simname = $1;
+		
+		if ($simname =~ /Melody/) {
+			my $x = 1;
+		}
+	
+		$slurl =~ s/hop:\/\///;
+		
+		$slurl = 'secondlife://http|!!' . $slurl;
+		
+		# $slurl =~ s/:(\d{4})\//:$1:/;
+		
+		if ($slurl !~ /\d$/) {
+			$slurl .= '/128/128/25';
+		}
+		
+		$description .= "\n\n" . $slurl;
+		
+		print qq!$name\n!;
+		
+		$name = substr($name,0,255);
+		
+		my $q = 'insert into events  (simname, category,creatoruuid, owneruuid,name, description, dateUTC,duration,covercharge, coveramount,parcelUUID, globalPos,eventflags) values (?,?,?,?,?,?,?,?,?,?,?,?,?) ';
+		if($db->Prepare($q))  {die $db->Error;}
+		$startdate = 0;
+		
+		my $uuid = '00000000-0000-0000-0000-000000000001';
+		if ($db->Execute("$slurl" ,	#simname,
+						  0,	 #category
+						  $uuid, #creatorUUID,
+						  $uuid,	#ownerUUID
+						  $name, 	# text,
+						  $description,
+						  $secs,		# DateUTC format
+						  $duration,		#duration
+						  0, 		#covercharge
+						  0,		#coveramount
+						  $uuid,	#parcelUUID
+						  '128,128,25',#globalpos
+						  0			#eventflags
+						  )) {die $db->Error;}
+		}
+	}
+	
+	foreach my $x (keys %Cat) {
+		print "$x\n";
+	}   
+	
+	use JSON;
+	
+	$q = 'Select simname, category,creatoruuid, owneruuid,name, description, dateUTC,duration,covercharge, coveramount,parcelUUID, globalPos,eventflags from events';
+	if ($db->Prepare($q)) {  die $db->Error;}
+	if ($db->Execute()) {die $db->Error;}
+	open (OUT, ">", "../events.txt");
+	
+	while ($db->FetchRow) {
+		my %Data =  $db->DataHash();
+		foreach my $data (keys %Data)
+		{
+			$Data{$data} =~ s/\n/\~/g;
+			$Data{$data} =~ s/\r//g;
+			print OUT "$data^$Data{$data}|";	
+		}
+		print OUT "\n";
+		
+	}
+	
+	close OUT;
+	}
+	else {
+	print "No events available today";
+	}
+
+
+
+=pod
+12:00AM
+
+insert into events  (simname,category,creatoruuid, owneruuid,name, description, dateUTC,duration,covercharge, coveramount,parcelUUID, globalPos,eventflags) values
+(	'simname',
+	0,
+	'00000000-0000-0000-0000-000000000000',
+	'00000000-0000-0000-0000-000000000000',
+	'test','description',0,
+	1000,0,0,'00000000-0000-0000-0000-000000000000',
+	'<0,0,0>',
+	0
+	
+);
+
++-------------+------------------+------+-----+---------+----------------+
+| Field       | Type             | Null | Key | Default | Extra          |
++-------------+------------------+------+-----+---------+----------------+
+| owneruuid   | char(36)         | NO   |     | NULL    |                |
+| name        | varchar(255)     | NO   |     | NULL    |                |
+| eventid     | int(11) unsigned | NO   | PRI | NULL    | auto_increment |
+| creatoruuid | char(36)         | NO   |     | NULL    |                |
+| category    | int(2)           | NO   |     | NULL    |                |
+| description | text             | NO   |     | NULL    |                |
+| dateUTC     | int(10)          | NO   |     | NULL    |                |
+| duration    | int(10)          | NO   |     | NULL    |                |
+| covercharge | tinyint(1)       | NO   |     | NULL    |                |
+| coveramount | int(10)          | NO   |     | NULL    |                |
+| simname     | varchar(255)     | NO   |     | NULL    |                |
+| parcelUUID  | char(36)         | NO   |     | NULL    |                |
+| globalPos   | varchar(255)     | NO   |     | NULL    |                |
+| eventflags  | int(1)           | NO   |     | NULL    |                |
++-------------+------------------+------+-----+---------+----------------+
+
+
+literature
+music
+education
+social
+The category for an event is stored as a number. The numbers for the
+categories are as follows:
+0 - Any  (NOTE: Event information will show "*Unspecified*")
+18- Discussion
+19- Sports
+20- Live Music
+22- Commercial
+23- Nightlife/Entertainment
+24- Games/Contests
+25- Pageants
+26- Education
+27- Arts and Culture
+28- Charity/Support Groups
+29- Miscellaneous
+
+The dateUTC field is a timestamp for the event in UTC time.
+
+The covercharge field is a boolean. Set it to 0 if there is no cover charge
+for the event. When covercharge is not 0, the amount is in the coveramount
+field. (It seems silly to require the boolean but this has been left in to
+avoid any compatability issues.)
+
+The globalPos field is the location of the event as a global grid coordinate.
+The format is "x/y/z". where x and y are the grid X and Y positions (times
+256) plus the x and y offset within the region named by the simname field.
+
+The eventflags field is 0 for a PG event, 1 for Mature, and 2 for Adult.
+
+=cut
