@@ -50,15 +50,11 @@
 		my $time = $data->{start};  #2018-08-30T07:00:00+00:00
 		my $slurl = $data->{hgurl};
 		
-		# following line added 2019-12-01 to decode unicode
-		use Text::Unidecode qw(unidecode);
 		use HTML::Entities;
 		$slurl = encode_entities($slurl);
 		
 		my $description =  $data->{description};
-		# fix 2019-12-01 in order to stop unicode problems
-		$description = unidecode(decode_entities($description));
-		#$description = decode_entities($description);
+		$description = decode_entities($description);
 		# remove any possible non-breaking spaces that will make the script fail
 		$description =~ s/\xa0/ /g;
 		$description =~ s/\xA0/ /g;
@@ -74,9 +70,7 @@
 		 
 		utf8::decode($description);
 
-		# fix 2019-12-01 in order to stop unicode problems
-		$name = unidecode(decode_entities($description));
-		#$name = decode_entities($name);
+		$name = decode_entities($name);
 		# remove any possible non-breaking spaces that will make the script fail
 		$name =~ s/\xa0/ /g;
 		$name =~ s/\xA0/ /g;
