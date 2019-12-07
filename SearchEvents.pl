@@ -14,14 +14,17 @@
 	my $ua = LWP::UserAgent->new;
 	$ua->timeout(10);
 	$ua->env_proxy;
-	
-	my $response = $ua->get('http://yourworlds.eu/hypevents/events.json');
+
+	## replacing defunct HYPEvents with fork 2DO.pm	
+	#my $response = $ua->get('http://yourworlds.eu/hypevents/events.json');
+	my $response = $ua->get('http://2do.pm/events/events.json');
 	
 	my $x = $response->content;
 	my %Cat;
 	if ($response->is_success) {
 	
-	open (OUT, ">", "../SecondLife/events.json");
+	#open (OUT, ">", "../SecondLife/events.json");
+	open (OUT, ">", "events.json");
 	my $x = $response->decoded_content;
 	$x =~ s/}/}\n/g;
 	print OUT $x;
@@ -50,8 +53,13 @@
 		use HTML::Entities;
 		$slurl = encode_entities($slurl);
 		
-		my $description =  $data->{description};		
+		my $description =  $data->{description};
 		$description = decode_entities($description);
+		# remove any possible non-breaking spaces that will make the script fail
+		$description =~ s/\xa0/ /g;
+		$description =~ s/\xA0/ /g;
+		$description =~ s/&amp;nbsp;/ /g;
+		$description =~ s/&nbsp;/ /g;
 		
 		use HTML::Strip;
 	
@@ -61,8 +69,13 @@
 		$hs->eof;
 		 
 		utf8::decode($description);
-		 		
+
 		$name = decode_entities($name);
+		# remove any possible non-breaking spaces that will make the script fail
+		$name =~ s/\xa0/ /g;
+		$name =~ s/\xA0/ /g;
+		$name =~ s/&amp;nbsp;/ /g;
+		$name =~ s/&nbsp;/ /g;
 		utf8::decode($name);
 		
 		print "$description\n";
