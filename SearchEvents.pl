@@ -68,7 +68,8 @@
 		$description = $hs->parse( $description );
 		$hs->eof;
 		 
-		utf8::decode($description);
+		# had to comment these out as another source of problem characters
+		#utf8::decode($description);
 
 		$name = decode_entities($name);
 		# remove any possible non-breaking spaces that will make the script fail
@@ -76,7 +77,8 @@
 		$name =~ s/\xA0/ /g;
 		$name =~ s/&amp;nbsp;/ /g;
 		$name =~ s/&nbsp;/ /g;
-		utf8::decode($name);
+		# had to comment these out as another source of problem characters
+		#utf8::decode($name);
 		
 		print "$description\n";
 		my @categories = $data->{categories};		
