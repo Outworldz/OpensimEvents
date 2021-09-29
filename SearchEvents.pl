@@ -60,6 +60,9 @@
 		$description =~ s/\xA0/ /g;
 		$description =~ s/&amp;nbsp;/ /g;
 		$description =~ s/&nbsp;/ /g;
+		# the next two lines remove four-byte UTF-8 characters that MySQL won't like
+		my $not_bmp = qr([\x{10000}-\x{10FFFF}]);
+		$description =~ s/$not_bmp//g;
 		
 		use HTML::Strip;
 	
@@ -77,6 +80,8 @@
 		$name =~ s/\xA0/ /g;
 		$name =~ s/&amp;nbsp;/ /g;
 		$name =~ s/&nbsp;/ /g;
+		# the next line removes four-byte UTF-8 characters that MySQL won't like (see above)
+		$name =~ s/$not_bmp//g;
 		# had to comment these out as another source of problem characters
 		#utf8::decode($name);
 		
